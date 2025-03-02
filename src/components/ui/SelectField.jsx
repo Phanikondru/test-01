@@ -1,89 +1,212 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { FaChevronDown, FaSearch } from 'react-icons/fa'
 
 const SelectField = ({ 
   label, 
   id, 
-  options = [],
+  options, 
+  value, 
+  onChange, 
   required = false,
-  searchable = false,
-  placeholder = 'Select an option'
+  error = ''
 }) => {
+  const [isFocused, setIsFocused] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedOption, setSelectedOption] = useState(null);
-  
-  const filteredOptions = searchable && searchTerm 
-    ? options.filter(option => 
-        typeof option === 'string' 
-          ? option.toLowerCase().includes(searchTerm.toLowerCase())
-          : option.label.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : options;
-  
-  const handleSelect = (option) => {
-    setSelectedOption(option);
-    setIsOpen(false);
+  const selectedOption = options.find(option => option.value === value);
+  const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
+
+  // Filter options based on search term
+  const filteredOptions = options.filter(option => 
+    option.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Handle selection from dropdown
+  const handleSelect = (optionValue) => {
+    onChange({
+      target: {
+        id: id,
+        value: optionValue
+      }
+    });
     setSearchTerm('');
+    setIsFocused(false);
   };
-  
+
+  // Handle input change for searching
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+    if (!isFocused) {
+      setIsFocused(true);
+    }
+  };
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsFocused(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Focus input when dropdown opens
+  useEffect(() => {
+    if (isFocused && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isFocused]);
+
+  // Reset search term when dropdown closes
+  useEffect(() => {
+    if (!isFocused) {
+      setSearchTerm('');
+    }
+  }, [isFocused]);
+
   return (
-    <div className="relative">
-      <label htmlFor={id} className="block text-sm font-medium text-gray-700 mb-1">
-        {required && <span className="text-red-500 mr-1">*</span>}
-        {label}
-      </label>
-      
-      <div className="relative">
-        <button
-          type="button"
-          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white text-left focus:outline-none focus:ring-2 focus:ring-american-blue focus:border-american-blue transition-colors"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {selectedOption 
-            ? (typeof selectedOption === 'string' ? selectedOption : selectedOption.label) 
-            : <span className="text-gray-500">{placeholder}</span>}
-        </button>
-        
-        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-          <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-          </svg>
-        </div>
-      </div>
-      
-      {isOpen && (
-        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none sm:text-sm">
-          {searchable && (
-            <div className="sticky top-0 z-10 bg-white px-2 py-2">
+    <div className="mb-4 relative" ref={dropdownRef}>
+      <motion.label 
+        htmlFor={id} 
+        className="block mb-2 text-sm font-medium text-american-blue"
+        initial={{ opacity: 0, y: -5 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+      >
+        {label} {required && <span className="text-american-red">*</span>}
+      </motion.label>
+
+      {/* Custom Select Trigger with Search Input */}
+      <motion.div
+        className={`w-full px-4 py-3 border ${error ? 'border-american-red' : isFocused ? 'border-american-blue' : 'border-gray-300'} 
+          rounded-md focus:outline-none bg-white flex justify-between items-center cursor-pointer
+          hover:border-american-blue transition-colors duration-200
+          ${isFocused ? 'ring-2 ring-american-blue ring-opacity-50' : ''}`}
+        onClick={() => {
+          setIsFocused(true);
+          if (inputRef.current) {
+            inputRef.current.focus();
+          }
+        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3 }}
+        whileHover={{ scale: 1.01 }}
+        role="combobox"
+        aria-expanded={isFocused}
+        aria-owns={`${id}-dropdown`}
+        aria-haspopup="listbox"
+      >
+        <div className="flex-grow flex items-center">
+          {isFocused ? (
+            <div className="flex items-center w-full">
+              <FaSearch className="text-gray-400 mr-2" />
               <input
+                ref={inputRef}
                 type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-american-blue focus:border-american-blue"
-                placeholder="Search..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={handleSearchChange}
+                placeholder={selectedOption ? selectedOption.label : "Search..."}
+                className="bg-transparent outline-none border-none focus:outline-none focus:ring-0 w-full text-gray-900"
+                style={{ boxShadow: 'none' }}
                 onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsFocused(false);
+                  } else if (e.key === 'Enter' && filteredOptions.length > 0) {
+                    handleSelect(filteredOptions[0].value);
+                  }
+                }}
               />
             </div>
+          ) : (
+            <span className={`${!value ? 'text-gray-500' : 'text-gray-900'}`}>
+              {selectedOption ? selectedOption.label : 'Select an option'}
+            </span>
           )}
-          
-          <ul className="py-1">
+        </div>
+        <motion.div
+          animate={{ rotate: isFocused ? 180 : 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <FaChevronDown className="text-american-blue" />
+        </motion.div>
+      </motion.div>
+
+      {/* Dropdown Options */}
+      <AnimatePresence>
+        {isFocused && (
+          <motion.div
+            id={`${id}-dropdown`}
+            className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            role="listbox"
+          >
             {filteredOptions.length > 0 ? (
-              filteredOptions.map((option, index) => (
-                <li
-                  key={index}
-                  className="text-gray-900 relative cursor-pointer select-none py-2 pl-3 pr-9 hover:bg-american-blue hover:text-white transition-colors"
-                  onClick={() => handleSelect(option)}
+              filteredOptions.map((option) => (
+                <motion.div
+                  key={option.value}
+                  className={`px-4 py-2 cursor-pointer ${value === option.value ? 'bg-american-blue text-white' : 'hover:bg-gray-50'}`}
+                  whileHover={{ 
+                    backgroundColor: value === option.value ? '#1E40AF' : '#F9FAFB',
+                    x: 3 
+                  }}
+                  onClick={() => handleSelect(option.value)}
+                  tabIndex="0"
+                  role="option"
+                  aria-selected={value === option.value}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelect(option.value);
+                    }
+                  }}
                 >
-                  {typeof option === 'string' ? option : option.label}
-                </li>
+                  {option.label}
+                </motion.div>
               ))
             ) : (
-              <li className="text-gray-500 relative cursor-default select-none py-2 pl-3 pr-9">
-                No options found
-              </li>
+              <div className="px-4 py-2 text-gray-500">No options found</div>
             )}
-          </ul>
-        </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Hidden native select for form submission */}
+      <select 
+        name={id}
+        value={value}
+        onChange={onChange}
+        className="sr-only"
+        required={required}
+        aria-hidden="true"
+      >
+        <option value="" disabled>Select an option</option>
+        {options.map(option => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+
+      {error && (
+        <motion.p 
+          className="mt-1 text-sm text-american-red"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ type: 'spring' }}
+        >
+          {error}
+        </motion.p>
       )}
     </div>
   )
